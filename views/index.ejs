@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Expense Tracker</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.14.1/themes/smoothness/jquery-ui.css">
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+  </head>
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-md-4">
+
+        </div>
+        <div class="col-md-4">
+          <h1>Expense Tracker</h1>
+          <form method="POST" action="/add-expense">
+            <div class="form-group mb-2">
+              <label for="amount" class="form-label">Amount</label>
+              <input type="number" class="form-control" id="amount" name="amount" required>
+            </div>
+            <div class="form-group mb-2">
+              <label for="category" class="form-label">Category</label>
+              <input type="text" id="category_name" name="category_name" class="form-control" required>
+              <input type="hidden" id="category_id" name="category_id">
+            </div>
+            <div class="text-end">
+              <button type="submit" class="btn btn-primary">Add Expense</button>
+            </div>
+          </form>
+        </div>
+        <div class="col-md-4">
+          
+        </div>
+      </div>
+    </div>
+    
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.14.1/jquery-ui.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+
+    <script>
+      $(function () {
+
+        let categories = [];
+
+        $.getJSON("/get-categories", function(data) {
+
+            categories = data.map(c => ({
+                label: c.name,
+                value: c.name,
+                id: c.id
+            }));
+
+            $("#category_name").autocomplete({
+                minLength: 0,
+
+                source: function(request, response) {
+
+                    let results = $.ui.autocomplete.filter(categories, request.term);
+
+                    response(results);
+                },
+
+                select: function(event, ui) {
+                    $("#category_id").val(ui.item.id);
+                    $("#category_name").val(ui.item.value);
+                    return false;
+                }
+            });
+
+        });
+
+        // show all when clicking the textbox
+        $("#category_name").on("focus", function () {
+            $(this).autocomplete("search", "");
+        });
+
+        // detect manual typing
+        $("#category_name").on("change", function () {
+
+            let val = $(this).val();
+            let match = categories.find(c => 
+              c.value.toLowerCase() === val.toLowerCase()
+            );
+
+            if (match) {
+                $("#category_id").val(match.id);
+            } else {
+                $("#category_id").val("new");
+            }
+
+        });
+
+      });
+    </script>
+  </body>
+</html>
