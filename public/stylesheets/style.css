@@ -8,3 +8,7 @@ body {
   border-radius: 5px;
   margin-top: 100px;
 }
+
+input[type="text"], input[type="number"], input[type="text"]:focus, input[type="number"]:focus {
+  background-color: #c8d6da;
+}
