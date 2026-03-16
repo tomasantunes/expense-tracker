@@ -1,6 +1,7 @@
 var express = require('express');
 var router = express.Router();
 var database = require('../libs/database');
+var categories = require('../libs/categories');
 var secretConfig = require('../secret-config');
 
 var { con, con2 } = database.getMySQLConnections();
@@ -27,7 +28,7 @@ router.post('/add-expense', async (req, res) => {
     return res.render('add-expense', { message: 'Invalid Authorization' });
   }
 
-  const { amount, category_id, category_name } = req.body;
+  var { amount, category_id, category_name } = req.body;
 
   if (!amount) {
     return res.render('add-expense', { message: 'Amount is required' });
@@ -38,9 +39,7 @@ router.post('/add-expense', async (req, res) => {
   }
 
   if (category_id === 'new' && category_name != '') {
-    const query = 'INSERT INTO expense_categories (name) VALUES (?)';
-    var res = await con2.execute(query, [category_name]);
-    category_id = res[0].insertId;
+    category_id = await categories.checksertCategory(category_name);
   }
 
   const query = 'INSERT INTO expense_tracker (amount, category_id) VALUES (?, ?)';
@@ -59,7 +58,7 @@ router.get('/get-categories', (req, res) => {
     return res.json({ status: "NOK", error: 'Invalid Authorization' });
   }
 
-  const query = 'SELECT id, name FROM category';
+  const query = 'SELECT id, name FROM expense_categories';
 
   con.query(query, (err, result) => {
     if (err) {

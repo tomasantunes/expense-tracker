@@ -47,7 +47,13 @@
 
         $.getJSON("/get-categories", function(data) {
 
-            categories = data.map(c => ({
+            if (data.status === "NOK") {
+                console.log("Failed to load categories:", data.error);
+                alert("Failed to load categories.");
+                return;
+            }
+
+            categories = data.data.map(c => ({
                 label: c.name,
                 value: c.name,
                 id: c.id
