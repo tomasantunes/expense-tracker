@@ -4,6 +4,7 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var secretConfig = require('./secret-config');
+var session = require('express-session');
 
 var indexRouter = require('./routes/index');
 
@@ -18,6 +19,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(session({
+  secret: secretConfig.SESSION_KEY,
+  resave: false,
+  saveUninitialized: true
+}));
 
 app.use('/', indexRouter);
 
