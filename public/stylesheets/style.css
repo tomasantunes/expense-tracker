@@ -12,3 +12,8 @@ body {
 input[type="text"], input[type="number"], input[type="text"]:focus, input[type="number"]:focus {
   background-color: #c8d6da;
 }
+
+.small-container {
+  max-width: 500px;
+  margin: 0 auto;
+}
