@@ -69,4 +69,27 @@ router.get('/get-categories', (req, res) => {
     res.json({ status: "OK", data: result });
   });
 });
+
+router.get('/list-expenses', (req, res) => {
+  if (!req.session.isLoggedIn) {
+    return res.send('Invalid Authorization');
+  }
+
+  const query = `
+    SELECT e.id, e.amount, c.name AS category_name, e.created_at
+    FROM expense_tracker e
+    JOIN expense_categories c ON e.category_id = c.id
+    ORDER BY e.created_at DESC
+  `;
+
+  con.query(query, (err, result) => {
+    if (err) {
+      console.log('Error fetching expenses:', err);
+      return res.send('Error fetching expenses from database.');
+    }
+
+    res.render('list-expenses', { expenses: result });
+  });
+});
+
 module.exports = router;
