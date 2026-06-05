@@ -53,6 +53,67 @@ router.post('/add-expense', async (req, res) => {
   });
 });
 
+router.post('/edit-expense', (req, res) => {
+  if (!req.session.isLoggedIn) {
+    return res.json({ status: "NOK", error: 'Invalid Authorization' });
+  }
+
+  var { id, amount, category_id, category_name } = req.body;
+
+  if (!id || !amount) {
+    return res.json({ status: "NOK", error: 'ID and Amount are required' });
+  }
+
+  if (!category_id && !category_name) {
+    return res.json({ status: "NOK", error: 'Category is required' });
+  }
+
+  if (category_id === 'new' && category_name != '') {
+    categories.checksertCategory(category_name).then(newCategoryId => {
+      updateExpense(id, amount, newCategoryId);
+    }).catch(err => {
+      console.log('Error checking/inserting category:', err);
+      return res.json({ status: "NOK", error: 'Error processing category.' });
+    });
+  } else {
+    updateExpense(id, amount, category_id);
+  }
+
+  function updateExpense(id, amount, categoryId) {
+    const query = 'UPDATE expense_tracker SET amount = ?, category_id = ? WHERE id = ?';
+    con.query(query, [amount, categoryId, id], (err, result) => {
+      if (err) {
+        console.log('Error updating expense:', err);
+        return res.json({ status: "NOK", error: 'Error updating expense in database.' });
+      }
+
+      res.json({ status: "OK", message: 'Expense updated successfully!' });
+    });
+  }
+});
+
+router.post('/delete-expense', (req, res) => {
+  if (!req.session.isLoggedIn) {
+    return res.json({ status: "NOK", error: 'Invalid Authorization' });
+  }
+
+  var { id } = req.body;
+
+  if (!id) {
+    return res.json({ status: "NOK", error: 'ID is required' });
+  }
+
+  const query = 'DELETE FROM expense_tracker WHERE id = ?';
+  con.query(query, [id], (err, result) => {
+    if (err) {
+      console.log('Error deleting expense:', err);
+      return res.json({ status: "NOK", error: 'Error deleting expense from database.' });
+    }
+
+    res.json({ status: "OK", message: 'Expense deleted successfully!' });
+  });
+});
+
 router.get('/get-categories', (req, res) => {
   if (!req.session.isLoggedIn) {
     return res.json({ status: "NOK", error: 'Invalid Authorization' });
