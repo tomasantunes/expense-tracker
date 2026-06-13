@@ -75,11 +75,6 @@
               </div>
 
               <div class="mb-3">
-                <label for="editCategoryId" class="form-label">Category ID</label>
-                <input type="number" min="1" class="form-control" id="editCategoryId" name="category_id" required>
-              </div>
-
-              <div class="mb-3">
                 <label for="editCategoryName" class="form-label">Category Name</label>
                 <input type="text" class="form-control" id="editCategoryName" name="category_name" required>
               </div>
@@ -102,14 +97,12 @@
         const editExpenseForm = document.getElementById("editExpenseForm");
         const editExpenseIdInput = document.getElementById("editExpenseId");
         const editAmountInput = document.getElementById("editAmount");
-        const editCategoryIdInput = document.getElementById("editCategoryId");
         const editCategoryNameInput = document.getElementById("editCategoryName");
 
         document.querySelectorAll(".edit-expense-btn").forEach(function (button) {
           button.addEventListener("click", function () {
             editExpenseIdInput.value = button.dataset.id || "";
             editAmountInput.value = button.dataset.amount || "";
-            editCategoryIdInput.value = button.dataset.categoryId || "";
             editCategoryNameInput.value = button.dataset.categoryName || "";
 
             editExpenseModal.show();
@@ -122,7 +115,6 @@
           const payload = new URLSearchParams({
             id: editExpenseIdInput.value,
             amount: editAmountInput.value,
-            category_id: editCategoryIdInput.value,
             category_name: editCategoryNameInput.value,
           });
 

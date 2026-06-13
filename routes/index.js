@@ -58,17 +58,17 @@ router.post('/edit-expense', (req, res) => {
     return res.json({ status: "NOK", error: 'Invalid Authorization' });
   }
 
-  var { id, amount, category_id, category_name } = req.body;
+  var { id, amount, category_name } = req.body;
 
   if (!id || !amount) {
     return res.json({ status: "NOK", error: 'ID and Amount are required' });
   }
 
-  if (!category_id && !category_name) {
+  if (!category_name) {
     return res.json({ status: "NOK", error: 'Category is required' });
   }
 
-  if (category_id === 'new' && category_name != '') {
+  if (category_name != '') {
     categories.checksertCategory(category_name).then(newCategoryId => {
       updateExpense(id, amount, newCategoryId);
     }).catch(err => {
