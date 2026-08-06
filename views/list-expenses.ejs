@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.14.1/themes/smoothness/jquery-ui.css">
     <link rel='stylesheet' href='/stylesheets/style.css' />
   </head>
   <body>
@@ -21,6 +22,8 @@
               <tr>
                 <th>Category</th>
                 <th>Amount</th>
+                <th>Class</th>
+                <th>Unit</th>
                 <th>Date</th>
                 <th>Actions</th>
               </tr>
@@ -30,6 +33,8 @@
                 <tr data-expense-id="<%= expense.id %>">
                   <td><%= expense.category_name %></td>
                   <td><%= Number(expense.amount).toFixed(2) %></td>
+                  <td><%= expense.class || '' %></td>
+                  <td><%= expense.unit || '' %></td>
                   <td><%= expense.created_at %></td>
                   <td>
                     <button
@@ -39,6 +44,8 @@
                       data-amount="<%= expense.amount %>"
                       data-category-id="<%= expense.category_id %>"
                       data-category-name="<%= expense.category_name %>"
+                      data-class="<%= expense.class || '' %>"
+                      data-unit="<%= expense.unit || '' %>"
                     >
                       Edit
                     </button>
@@ -78,6 +85,16 @@
                 <label for="editCategoryName" class="form-label">Category Name</label>
                 <input type="text" class="form-control" id="editCategoryName" name="category_name" required>
               </div>
+
+              <div class="mb-3">
+                <label for="editClass" class="form-label">Class</label>
+                <input type="text" class="form-control" id="editClass" name="class" required>
+              </div>
+
+              <div class="mb-3">
+                <label for="editUnit" class="form-label">Unit</label>
+                <input type="text" class="form-control" id="editUnit" name="unit" required>
+              </div>
             </form>
           </div>
           <div class="modal-footer">
@@ -88,7 +105,10 @@
       </div>
     </div>
     
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.14.1/jquery-ui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script src="/javascripts/expense-mappings.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         const editExpenseModalElement = document.getElementById("editExpenseModal");
@@ -98,12 +118,98 @@
         const editExpenseIdInput = document.getElementById("editExpenseId");
         const editAmountInput = document.getElementById("editAmount");
         const editCategoryNameInput = document.getElementById("editCategoryName");
+        const editClassInput = document.getElementById("editClass");
+        const editUnitInput = document.getElementById("editUnit");
+        let categories = [];
+        let classes = [];
+        let units = [];
+
+        function unique(values) {
+          return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+        }
+
+        function matchingMappings(excludedField) {
+          const selected = {
+            category: editCategoryNameInput.value.trim(),
+            class: editClassInput.value.trim(),
+            unit: editUnitInput.value.trim()
+          };
+
+          return window.expenseMappings.filter(mapping =>
+            Object.keys(selected).every(field =>
+              field === excludedField || !selected[field] ||
+              mapping[field].toLowerCase() === selected[field].toLowerCase()
+            )
+          );
+        }
+
+        function optionsFor(field, fallback) {
+          const mapped = unique(matchingMappings(field).map(mapping => mapping[field]));
+          return mapped.length ? mapped : fallback;
+        }
+
+        function fillUniqueMatches() {
+          const category = editCategoryNameInput.value.trim().toLowerCase();
+          const expenseClass = editClassInput.value.trim().toLowerCase();
+          let matches = window.expenseMappings.filter(mapping => mapping.category.toLowerCase() === category);
+
+          if (!matches.length && expenseClass) {
+            matches = window.expenseMappings.filter(mapping => mapping.class.toLowerCase() === expenseClass);
+          }
+
+          if (matches.length) {
+            const matchingClasses = unique(matches.map(mapping => mapping.class));
+            const matchingUnits = unique(matches.map(mapping => mapping.unit));
+            if (matchingClasses.length === 1) editClassInput.value = matchingClasses[0];
+            if (matchingUnits.length === 1) editUnitInput.value = matchingUnits[0];
+          }
+        }
+
+        function configureAutocomplete(selector, field, values) {
+          $(selector).autocomplete({
+            minLength: 0,
+            source: function(request, response) {
+              response($.ui.autocomplete.filter(optionsFor(field, values), request.term));
+            },
+            select: function(event, ui) {
+              $(selector).val(ui.item.value);
+              setTimeout(fillUniqueMatches, 0);
+              return false;
+            }
+          }).on("focus", function() {
+            $(this).autocomplete("search", "");
+          }).on("change", fillUniqueMatches);
+        }
+
+        $.getJSON("/get-categories", function(data) {
+          if (data.status === "NOK") {
+            alert("Failed to load categories.");
+            return;
+          }
+
+          categories = data.data.map(row => row.name).sort((a, b) => a.localeCompare(b));
+          configureAutocomplete("#editCategoryName", "category", categories);
+        });
+
+        $.getJSON("/get-budget-options", function(data) {
+          if (data.status === "NOK") {
+            alert("Failed to load classes and units.");
+            return;
+          }
+
+          classes = data.data.classes.map(row => row.class).sort((a, b) => a.localeCompare(b));
+          units = data.data.units.map(row => row.unit).sort((a, b) => a.localeCompare(b));
+          configureAutocomplete("#editClass", "class", classes);
+          configureAutocomplete("#editUnit", "unit", units);
+        });
 
         document.querySelectorAll(".edit-expense-btn").forEach(function (button) {
           button.addEventListener("click", function () {
             editExpenseIdInput.value = button.dataset.id || "";
             editAmountInput.value = button.dataset.amount || "";
             editCategoryNameInput.value = button.dataset.categoryName || "";
+            editClassInput.value = button.dataset.class || "";
+            editUnitInput.value = button.dataset.unit || "";
 
             editExpenseModal.show();
           });
@@ -112,10 +218,19 @@
         editExpenseForm.addEventListener("submit", async function (event) {
           event.preventDefault();
 
+          const classExists = classes.some(value => value.toLowerCase() === editClassInput.value.toLowerCase());
+          const unitExists = units.some(value => value.toLowerCase() === editUnitInput.value.toLowerCase());
+          if (!classExists || !unitExists) {
+            alert("The selected class or unit does not exist in the budget.");
+            return;
+          }
+
           const payload = new URLSearchParams({
             id: editExpenseIdInput.value,
             amount: editAmountInput.value,
             category_name: editCategoryNameInput.value,
+            class: editClassInput.value,
+            unit: editUnitInput.value,
           });
 
           try {
@@ -129,6 +244,12 @@
 
             if (!response.ok) {
               throw new Error("Failed to edit expense");
+            }
+
+            const result = await response.json();
+            if (result.status !== "OK") {
+              alert(result.error || "Could not edit expense. Please try again.");
+              return;
             }
 
             editExpenseModal.hide();

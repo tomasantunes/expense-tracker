@@ -28,7 +28,7 @@ router.post('/add-expense', async (req, res) => {
     return res.render('add-expense', { message: 'Invalid Authorization' });
   }
 
-  var { amount, category_id, category_name } = req.body;
+  var { amount, category_id, category_name, class: expenseClass, unit } = req.body;
 
   if (!amount) {
     return res.render('add-expense', { message: 'Amount is required' });
@@ -38,12 +38,28 @@ router.post('/add-expense', async (req, res) => {
     return res.render('add-expense', { message: 'Category is required' });
   }
 
+  if (!expenseClass || !unit) {
+    return res.render('add-expense', { message: 'Class and unit are required' });
+  }
+
+  try {
+    const [classRows] = await con2.query('SELECT DISTINCT category AS class FROM budget_items WHERE category = ?', [expenseClass]);
+    const [unitRows] = await con2.query('SELECT DISTINCT unit FROM budget_sub_items WHERE unit = ?', [unit]);
+
+    if (!classRows.length || !unitRows.length) {
+      return res.render('add-expense', { message: 'The selected class or unit does not exist in the budget.' });
+    }
+  } catch (err) {
+    console.log('Error validating budget values:', err);
+    return res.render('add-expense', { message: 'Error validating class and unit.' });
+  }
+
   if (category_id === 'new' && category_name != '') {
     category_id = await categories.checksertCategory(category_name);
   }
 
-  const query = 'INSERT INTO expense_tracker (amount, category_id) VALUES (?, ?)';
-  con.query(query, [amount, category_id], (err, result) => {
+  const query = 'INSERT INTO expense_tracker (amount, category_id, `class`, unit) VALUES (?, ?, ?, ?)';
+  con.query(query, [amount, category_id, expenseClass, unit], (err, result) => {
     if (err) {
       console.log('Error inserting expense:', err);
       return res.render('add-expense', { message: 'Error adding expense to database.' });
@@ -53,12 +69,12 @@ router.post('/add-expense', async (req, res) => {
   });
 });
 
-router.post('/edit-expense', (req, res) => {
+router.post('/edit-expense', async (req, res) => {
   if (!req.session.isLoggedIn) {
     return res.json({ status: "NOK", error: 'Invalid Authorization' });
   }
 
-  var { id, amount, category_name } = req.body;
+  var { id, amount, category_name, class: expenseClass, unit } = req.body;
 
   if (!id || !amount) {
     return res.json({ status: "NOK", error: 'ID and Amount are required' });
@@ -68,20 +84,36 @@ router.post('/edit-expense', (req, res) => {
     return res.json({ status: "NOK", error: 'Category is required' });
   }
 
+  if (!expenseClass || !unit) {
+    return res.json({ status: "NOK", error: 'Class and unit are required' });
+  }
+
+  try {
+    const [classRows] = await con2.query('SELECT DISTINCT category AS class FROM budget_items WHERE category = ?', [expenseClass]);
+    const [unitRows] = await con2.query('SELECT DISTINCT unit FROM budget_sub_items WHERE unit = ?', [unit]);
+
+    if (!classRows.length || !unitRows.length) {
+      return res.json({ status: "NOK", error: 'The selected class or unit does not exist in the budget.' });
+    }
+  } catch (err) {
+    console.log('Error validating budget values:', err);
+    return res.json({ status: "NOK", error: 'Error validating class and unit.' });
+  }
+
   if (category_name != '') {
     categories.checksertCategory(category_name).then(newCategoryId => {
-      updateExpense(id, amount, newCategoryId);
+      updateExpense(id, amount, newCategoryId, expenseClass, unit);
     }).catch(err => {
       console.log('Error checking/inserting category:', err);
       return res.json({ status: "NOK", error: 'Error processing category.' });
     });
   } else {
-    updateExpense(id, amount, category_id);
+    updateExpense(id, amount, category_id, expenseClass, unit);
   }
 
-  function updateExpense(id, amount, categoryId) {
-    const query = 'UPDATE expense_tracker SET amount = ?, category_id = ? WHERE id = ?';
-    con.query(query, [amount, categoryId, id], (err, result) => {
+  function updateExpense(id, amount, categoryId, expenseClass, unit) {
+    const query = 'UPDATE expense_tracker SET amount = ?, category_id = ?, `class` = ?, unit = ? WHERE id = ?';
+    con.query(query, [amount, categoryId, expenseClass, unit, id], (err, result) => {
       if (err) {
         console.log('Error updating expense:', err);
         return res.json({ status: "NOK", error: 'Error updating expense in database.' });
@@ -119,7 +151,7 @@ router.get('/get-categories', (req, res) => {
     return res.json({ status: "NOK", error: 'Invalid Authorization' });
   }
 
-  const query = 'SELECT id, name FROM expense_categories';
+  const query = 'SELECT id, name FROM expense_categories ORDER BY name ASC';
 
   con.query(query, (err, result) => {
     if (err) {
@@ -131,13 +163,37 @@ router.get('/get-categories', (req, res) => {
   });
 });
 
+router.get('/get-budget-options', async (req, res) => {
+  if (!req.session.isLoggedIn) {
+    return res.json({ status: "NOK", error: 'Invalid Authorization' });
+  }
+
+  try {
+    const [[classes], [units]] = await Promise.all([
+      con2.query('SELECT DISTINCT category AS class FROM budget_items ORDER BY class ASC'),
+      con2.query('SELECT DISTINCT unit FROM budget_sub_items ORDER BY unit ASC')
+    ]);
+
+    res.json({
+      status: "OK",
+      data: {
+        classes: classes.filter(row => row.class != null),
+        units: units.filter(row => row.unit != null)
+      }
+    });
+  } catch (err) {
+    console.log('Error fetching budget options:', err);
+    res.json({ status: "NOK", error: 'Error fetching classes and units from database.' });
+  }
+});
+
 router.get('/list-expenses', (req, res) => {
   if (!req.session.isLoggedIn) {
     return res.send('Invalid Authorization');
   }
 
   const query = `
-    SELECT e.id, e.amount, c.name AS category_name, e.created_at
+    SELECT e.id, e.amount, e.category_id, c.name AS category_name, e.\`class\`, e.unit, e.created_at
     FROM expense_tracker e
     JOIN expense_categories c ON e.category_id = c.id
     ORDER BY e.created_at DESC

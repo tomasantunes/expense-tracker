@@ -25,6 +25,14 @@
               <input type="text" id="category_name" name="category_name" class="form-control" required>
               <input type="hidden" id="category_id" name="category_id">
             </div>
+            <div class="form-group mb-2">
+              <label for="expense_class" class="form-label">Class</label>
+              <input type="text" id="expense_class" name="class" class="form-control" required>
+            </div>
+            <div class="form-group mb-2">
+              <label for="unit" class="form-label">Unit</label>
+              <input type="text" id="unit" name="unit" class="form-control" required>
+            </div>
             <div class="text-end">
               <button type="submit" class="btn btn-primary">Add Expense</button>
             </div>
@@ -37,11 +45,83 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.14.1/jquery-ui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script src="/javascripts/expense-mappings.js"></script>
 
     <script>
       $(function () {
 
         let categories = [];
+        let classes = [];
+        let units = [];
+
+        function unique(values) {
+          return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+        }
+
+        function matchingMappings(excludedField) {
+          const selected = {
+            category: $("#category_name").val().trim(),
+            class: $("#expense_class").val().trim(),
+            unit: $("#unit").val().trim()
+          };
+
+          return window.expenseMappings.filter(mapping =>
+            Object.keys(selected).every(field =>
+              field === excludedField || !selected[field] ||
+              mapping[field].toLowerCase() === selected[field].toLowerCase()
+            )
+          );
+        }
+
+        function optionsFor(field, fallback) {
+          const mapped = unique(matchingMappings(field).map(mapping => mapping[field]));
+          return mapped.length ? mapped : fallback;
+        }
+
+        function fillUniqueMatches() {
+          const category = $("#category_name").val().trim().toLowerCase();
+          const expenseClass = $("#expense_class").val().trim().toLowerCase();
+          let matches = window.expenseMappings.filter(mapping => mapping.category.toLowerCase() === category);
+
+          if (!matches.length && expenseClass) {
+            matches = window.expenseMappings.filter(mapping => mapping.class.toLowerCase() === expenseClass);
+          }
+
+          if (matches.length) {
+            const matchingClasses = unique(matches.map(mapping => mapping.class));
+            const matchingUnits = unique(matches.map(mapping => mapping.unit));
+            if (matchingClasses.length === 1) $("#expense_class").val(matchingClasses[0]);
+            if (matchingUnits.length === 1) $("#unit").val(matchingUnits[0]);
+          }
+        }
+
+        function configureBudgetAutocomplete(selector, field, values) {
+          $(selector).autocomplete({
+            minLength: 0,
+            source: function(request, response) {
+              response($.ui.autocomplete.filter(optionsFor(field, values), request.term));
+            },
+            select: function(event, ui) {
+              $(selector).val(ui.item.value);
+              setTimeout(fillUniqueMatches, 0);
+              return false;
+            }
+          }).on("focus", function() {
+            $(this).autocomplete("search", "");
+          }).on("change", fillUniqueMatches);
+        }
+
+        $.getJSON("/get-budget-options", function(data) {
+          if (data.status === "NOK") {
+            alert("Failed to load classes and units.");
+            return;
+          }
+
+          classes = data.data.classes.map(row => row.class).sort((a, b) => a.localeCompare(b));
+          units = data.data.units.map(row => row.unit).sort((a, b) => a.localeCompare(b));
+          configureBudgetAutocomplete("#expense_class", "class", classes);
+          configureBudgetAutocomplete("#unit", "unit", units);
+        });
 
         $.getJSON("/get-categories", function(data) {
 
@@ -55,14 +135,15 @@
                 label: c.name,
                 value: c.name,
                 id: c.id
-            }));
+            })).sort((a, b) => a.value.localeCompare(b.value));
 
             $("#category_name").autocomplete({
                 minLength: 0,
 
                 source: function(request, response) {
-
-                    let results = $.ui.autocomplete.filter(categories, request.term);
+                    const allowedCategories = optionsFor("category", categories.map(category => category.value));
+                    const filteredCategories = categories.filter(category => allowedCategories.includes(category.value));
+                    let results = $.ui.autocomplete.filter(filteredCategories, request.term);
 
                     response(results);
                 },
@@ -70,6 +151,7 @@
                 select: function(event, ui) {
                     $("#category_id").val(ui.item.id);
                     $("#category_name").val(ui.item.value);
+                    setTimeout(fillUniqueMatches, 0);
                     return false;
                 }
             });
@@ -95,6 +177,20 @@
                 $("#category_id").val("new");
             }
 
+            fillUniqueMatches();
+
+        });
+
+        $("form").on("submit", function(event) {
+          const selectedClass = $("#expense_class").val();
+          const selectedUnit = $("#unit").val();
+          const classExists = classes.some(value => value.toLowerCase() === selectedClass.toLowerCase());
+          const unitExists = units.some(value => value.toLowerCase() === selectedUnit.toLowerCase());
+
+          if (!classExists || !unitExists) {
+            event.preventDefault();
+            alert("The selected class or unit does not exist in the budget.");
+          }
         });
 
       });
