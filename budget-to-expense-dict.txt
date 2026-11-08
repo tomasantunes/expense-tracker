@@ -1,0 +1,4 @@
+expense_categories.category = category
+budget_items.category = class
+budget_sub_items.unit = unit
+
